@@ -10,14 +10,18 @@ Yubikey OTP token and (regardless of identifier) a password.  Actual password cr
 
 from __future__ import unicode_literals
 
+from random import SystemRandom
 from time import time, sleep
 from datetime import datetime
-from yubico import yubico, yubico_exceptions
+from yubico import yubico
 from marrow.util.convert import boolean
 from web.core import config, request
+from web.core.templating import render
+from web.core.locale import _
 
-from brave.core.account.model import User, LoginHistory
+from brave.core.account.model import User, LoginHistory, PasswordRecovery
 
+import brave.core.util as util
 
 log = __import__('logging').getLogger(__name__)
 
@@ -33,6 +37,11 @@ def lookup(identifier):
     
     return user
 
+
+def lookup_email(email):
+    """get user by email address"""
+    user = User.objects(email=email.lower()).first()
+    return user
 
 def authentication_logger(fn):
     """Decorate the authentication handler to log attempts.
@@ -67,11 +76,11 @@ def authenticate(identifier, password):
     
     # Build the MongoEngine query to find 
     if '@' in identifier:
-        query[b'email'] = identifier
+        query[b'email'] = identifier.lower() #Ensure that email addresses are taken as lowercase regardless of what the user provides.
     elif len(identifier) == 44:
         query[b'otp'] = identifier[:12]
     else:
-        query[b'username'] = identifier
+        query[b'username'] = identifier.lower() #Ensure that the username is lowercase regardless of what the user provides
     
     user = User.objects(**query).first()
     
@@ -107,3 +116,26 @@ def authenticate(identifier, password):
     
     return user.id, user
 
+
+def send_recover_email(user):
+    """Sends a recovery-link to the specified user objects' email address"""
+    # generate recovery key
+    recovery_key = SystemRandom().randint(0, (2<< 62)-1)
+
+    # send email
+    params = {'email': user.email, 'recovery_key': str(recovery_key)}
+    mailer = util.mail
+    message = mailer.new(to=user.email, subject=_("Password Recovery - Brave Collective Core Services"))
+
+    #explicitley get the text contend for the mail
+    mime, content = render("brave/core/account/template/mail/lost.txt", dict(params=params))
+    message.plain = content
+
+    #explicitley get the html contend for the mail
+    mime, content = render("brave/core/account/template/mail/lost.html", dict(params=params))
+    message.rich = content
+
+    mailer.send(message)
+
+    # store key in DB
+    PasswordRecovery(user, recovery_key).save()

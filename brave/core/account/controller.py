@@ -1,10 +1,12 @@
 # encoding: utf-8
 
 from marrow.util.bunch import Bunch
+from marrow.mailer.validator import EmailValidator
 from web.auth import authenticate, deauthenticate
 from web.core import Controller, HTTPMethod, request, config
 from web.core.http import HTTPFound, HTTPSeeOther, HTTPForbidden
 from web.core.locale import _
+from mongoengine import ValidationError, NotUniqueError
 
 from brave.core.account.model import User, PasswordRecovery
 from brave.core.account.form import authenticate as authenticate_form, register as register_form, \
@@ -14,6 +16,7 @@ from brave.core.account.authentication import lookup_email, send_recover_email
 from yubico import yubico
 from marrow.util.convert import boolean
 
+import zxcvbn
 import re
 
 log = __import__('logging').getLogger(__name__)
@@ -165,24 +168,27 @@ class Register(HTTPMethod):
         
         if not data.username or not data.email or not data.password or data.password != data.pass2:
             return 'json:', dict(success=False, message=_("Missing data or passwords do not match."), data=data)
-        
+
         #Make sure that the provided email address is a valid form for an email address
-        #TODO: Support IDNs and make RFC 822 compliant
-        emailSearch = re.search('[a-zA-Z0-9\.\+]+@[a-zA-Z0-9\.\+]+\.[a-zA-Z0-9]+', data.email)
-        if emailSearch == None:
+        v = EmailValidator()
+        email = data.email
+        email, err = v.validate(email)
+        if err:
             return 'json:', dict(success=False, message=_("Invalid email address provided."), data=data)
-         
-        #Prevents Mongodb validation check from hanging thread, plus all tlds are at least 2 characters.
-        tldSearch = re.findall('\.[a-zA-Z0-9]+', data.email)
-        tld = tldSearch.pop()
-        #tld includes the leading '.'
-        if len(tld) < 3:
-            return 'json:', dict(success=False, message=_("Invalid email address provided."), data=data)
+        
+        #If the password has a score of less than 3, reject it
+        if(zxcvbn.password_strength(data.password).get("score") <= 2):
+            return 'json:', dict(success=False, message=_("Password provided is too weak. please add more characters, or include lowercase, uppercase, and special characters."), data=data)
         
         #Ensures that the provided username and email are lowercase
         user = User(data.username.lower(), data.email.lower(), active=True)
         user.password = data.password
-        user.save()
+        try:
+            user.save()
+        except ValidationError:
+            return 'json:', dict(success=False, message=_("Invalid email address provided."), data=data)
+        except NotUniqueError:
+            return 'json:', dict(success=False, message=_("Either the username or email address provided is already taken."), data=data)
         
         authenticate(data.username.lower(), data.password)
         
@@ -209,7 +215,7 @@ class Settings(HTTPMethod):
         user = User.objects(**query).first()
 
         if data.form == "changepassword":
-            passwd_ok, error_msg = _check_password(data.password, data.pass2)
+            passwd_ok, error_msg = _check_password(data.passwd, data.passwd1)
 
             if not passwd_ok:
                 return 'json:', dict(success=False, message=error_msg, data=data)
@@ -262,7 +268,7 @@ class Settings(HTTPMethod):
             
             user.rotp = rotp
             user.save()
-			
+            
         #Handle the user attempting to delete their account
         elif data.form == "deleteaccount":
             if isinstance(data.passwd, unicode):
@@ -286,7 +292,41 @@ class Settings(HTTPMethod):
             
             #Redirect user to the root of the server instead of the settings page
             return 'json:', dict(success=True, location="/")
-			
+            
+        #Handle the user attempting to change the email address associated with their account
+        elif data.form == "changeemail":
+            if isinstance(data.passwd, unicode):
+                data.passwd = data.passwd.encode('utf-8')
+        
+            #Check whether the user's supplied password is correct
+            if not User.password.check(user.password, data.passwd):
+                return 'json:', dict(success=False, message=_("Password incorrect."), data=data)
+
+            #Check that the two provided email addresses match
+            if not data.newEmail.lower() == data.newEmailConfirm.lower():
+                return 'json:', dict(success=False, message=_("Provided email addresses do not match."), data=data)
+            
+            #Make sure that the provided email address is a valid form for an email address
+            v = EmailValidator()
+            email = data.newEmail
+            email, err = v.validate(email)
+            if err:
+                return 'json:', dict(success=False, message=_("Invalid email address provided."), data=data)
+                
+            #Make sure that the new email address is not already taken
+            count = User.objects.filter(**{"email": data.newEmail.lower()}).count()
+            if not count == 0:
+                return 'json:', dict(success=False, message=_("The email address provided is already taken."), data=data)
+       
+            #Change the email address in the database and catch any email validation exceptions that mongo throws
+            user.email = data.newEmail.lower()
+            try:
+                user.save()
+            except ValidationError:
+                return 'json:', dict(success=False, message=_("Invalid email address provided."), data=data)
+            except NotUniqueError:
+                return 'json:', dict(success=False, message=_("The email address provided is already taken."), data=data)
+            
         else:
             return 'json:', dict(success=False, message=_("Form does not exist."), location="/")
         
@@ -305,8 +345,25 @@ class AccountController(Controller):
         if set(query.keys()) - {'username', 'email'}:
             raise HTTPForbidden()
         
-        count = User.objects.filter(**{str(k): v for k, v in query.items()}).count()
+        count = User.objects.filter(**{str(k): v.lower() for k, v in query.items()}).count()
         return 'json:', dict(available=not bool(count), query={str(k): v for k, v in query.items()})
+        
+    def entropy(self, **query):
+        #Remove the timestamp
+        query.pop('ts', None)
+        
+        #Make sure the user provides only a password
+        if set(query.keys()) - {'password'}:
+            raise HTTPForbidden()
+        
+        password = query.get("password");
+        strong = False;
+        
+        #If the password has a score of greater than 2, allow it
+        if(zxcvbn.password_strength(password).get("score") > 2):
+            strong = True
+        
+        return 'json:', dict(approved=strong, query={str(k): v for k, v in query.items()})
     
     def deauthenticate(self):
         deauthenticate()

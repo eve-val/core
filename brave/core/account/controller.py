@@ -22,6 +22,8 @@ import re
 log = __import__('logging').getLogger(__name__)
 
 
+MINIMUM_PASSWORD_STRENGTH = 3
+
 def _check_password(passwd1, passwd2):
     """checks the passed passwords for equality and length
     (could be extended to add minimal length, complexity, ...)
@@ -145,6 +147,10 @@ class Recover(HTTPMethod):
         if not passwd_ok:
             return 'json:', dict(success=False, message=error_msg)
 
+        #If the password isn't strong enough, reject it
+        if(zxcvbn.password_strength(data.password).get("score") < MINIMUM_PASSWORD_STRENGTH):
+            return 'json:', dict(success=False, message=_("Password provided is too weak. please add more characters, or include lowercase, uppercase, and special characters."), data=data)
+
         #set new password
         user = recovery.user
         user.password = data.password
@@ -185,8 +191,8 @@ class Register(HTTPMethod):
         if err:
             return 'json:', dict(success=False, message=_("Invalid email address provided."), data=data)
         
-        #If the password has a score of less than 3, reject it
-        if(zxcvbn.password_strength(data.password).get("score") <= 2):
+        #If the password isn't strong enough, reject it
+        if(zxcvbn.password_strength(data.password).get("score") < MINIMUM_PASSWORD_STRENGTH):
             return 'json:', dict(success=False, message=_("Password provided is too weak. please add more characters, or include lowercase, uppercase, and special characters."), data=data)
         
         #Ensures that the provided username and email are lowercase
@@ -234,6 +240,10 @@ class Settings(HTTPMethod):
 
             if not User.password.check(user.password, data.old):
                 return 'json:', dict(success=False, message=_("Old password incorrect."), data=data)
+
+            #If the password isn't strong enough, reject it
+            if(zxcvbn.password_strength(data.passwd).get("score") < MINIMUM_PASSWORD_STRENGTH):
+                return 'json:', dict(success=False, message=_("Password provided is too weak. please add more characters, or include lowercase, uppercase, and special characters."), data=data)
 
             user.password = data.passwd
             user.save()
@@ -296,6 +306,7 @@ class Settings(HTTPMethod):
                 return 'json:', dict(success=False, message=_("Delete was either misspelled or not lowercase."), data=data)
             
             #Delete the user account and then deauthenticate the browser session
+            log.info("User %s authorized the deletion of their account.", user)
             user.delete()
             deauthenticate()
             
@@ -335,6 +346,48 @@ class Settings(HTTPMethod):
                 return 'json:', dict(success=False, message=_("Invalid email address provided."), data=data)
             except NotUniqueError:
                 return 'json:', dict(success=False, message=_("The email address provided is already taken."), data=data)
+        
+        #Handle the user attempting to merge 2 accounts together
+        elif data.form == "mergeaccount":
+            if isinstance(data.passwd, unicode):
+                data.passwd = data.passwd.encode('utf-8')
+                
+            if isinstance(data.passwd2, unicode):
+                data.passwd2 = data.passwd2.encode('utf-8')
+                
+            #Make the user enter their username so they know what they're doing.
+            if user.username != data.username.lower() and user.username != data.username:
+                return 'json:', dict(success=False, message=_("First username incorrect."), data=data)
+                
+            #Check whether the user's supplied password is correct
+            if not User.password.check(user.password, data.passwd):
+                return 'json:', dict(success=False, message=_("First password incorrect."), data=data)
+                
+            #Make sure the user isn't trying to merge their account into itself.
+            if data.username.lower() == data.username2.lower():
+                return 'json:', dict(success=False, message=_("You can't merge an account into itself."), data=data)
+                
+            #Make the user enter the second username so we can get the User object they want merged in.
+            if not User.objects(username=data.username2.lower()) and not User.objects(username=data.username2):
+                return 'json:', dict(success=False, message=_("Unable to find user by second username."), data=data)
+                
+            other = User.objects(username=data.username2).first()
+            if not other:
+                other = User.objects(username=data.username2.lower()).first()
+                
+            #Check whether the user's supplied password is correct
+            if not User.password.check(other.password, data.passwd2):
+                return 'json:', dict(success=False, message=_("Second password incorrect."), data=data)
+                
+            #Make them type "merge" exactly
+            if data.confirm != "merge":
+                return 'json:', dict(success=False, message=_("Merge was either misspelled or not lowercase."), data=data)
+                
+            log.info("User %s merged account %s into %s.", user.username, other.username, user.username)
+            user.merge(other)
+            
+            #Redirect user to the root of the server instead of the settings page
+            return 'json:', dict(success=True, location="/")
             
         else:
             return 'json:', dict(success=False, message=_("Form does not exist."), location="/")

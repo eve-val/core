@@ -24,7 +24,8 @@ class EVECredential(Document):
             indexes = [
                     'owner',
                     # Don't keep expired credentials.
-                    dict(fields=['expires'], expireAfterSeconds=0)
+                    dict(fields=['expires'], expireAfterSeconds=0),
+                    dict(fields=['key'], unique=True)
                 ],
         )
     
@@ -35,6 +36,12 @@ class EVECredential(Document):
     verified = BooleanField(db_field='v', default=False)
     expires = DateTimeField(db_field='e')
     owner = ReferenceField('User', db_field='o', reverse_delete_rule='CASCADE')
+    #the violation field is used to indicate some sort of conflict for a key. 
+    #A value of 'Character' means that a key gives access to a character which 
+    #is already attached to a different account than the owner of the key.
+    #A value of None is used to indicate no problem
+    #TODO: Add Key violations
+    violation = StringField(db_field='s')
     
     modified = DateTimeField(db_field='m', default=datetime.utcnow)
     
@@ -49,7 +56,10 @@ class EVECredential(Document):
     @property
     def mask(self):
         """Returns a Key Mask object instead of just the integer."""
+        
         if self.kind == "Account":
+            return EVECharacterKeyMask(self._mask)
+        elif self.kind == "Character":
             return EVECharacterKeyMask(self._mask)
         elif self.kind == "Corporation":
             return EVECorporationKeyMask(self._mask)
@@ -74,7 +84,13 @@ class EVECredential(Document):
             char = EVECharacter(identifier=info.characterID).save()
         except NotUniqueError:
             char = EVECharacter.objects(identifier=info.characterID)[0]
-        
+            
+            if self.owner != char.owner:
+                log.warning("Security violation detected. Multiple accounts trying to register character %s, ID %d. Actual owner is %s. User adding this character is %s.",
+                    char.name, info.characterID, EVECharacter.objects(identifier = info.characterID).first().owner, self.owner)
+                self.violation = "Character"
+                return
+
         if self.mask.has_access(EVECharacterKeyMask.CHARACTER_SHEET):
             info = api.char.CharacterSheet(self, characterID=info.characterID)
         elif self.mask.has_access(EVECharacterKeyMask.CHARACTER_INFO_PUBLIC):
@@ -97,6 +113,7 @@ class EVECredential(Document):
         char.roles = [i.roleName for i in info.corporationRoles.row] if 'corporationRoles' in info else []
 
         char.save()
+        return char
     
     def get_membership(self, info):
         from brave.core.character.model import EVEAlliance, EVECorporation, EVECharacter
@@ -165,13 +182,19 @@ class EVECredential(Document):
             log.error("No characters returned for key %d?", self.key)
             return self
         
+        allCharsOK = True
+
         for char in result.characters.row:
             if 'corporationName' not in char:
                 log.error("corporationName missing for key %d", self.key)
                 continue
             
-            self.pull_character(char)
+            if not self.pull_character(char):
+                allCharsOK = False
         
+        if allCharsOK and self.violation == "Character":
+            self.violation = None
+
         self.modified = datetime.utcnow()
         self.save()
         return self
@@ -204,7 +227,7 @@ class EVEKeyMask:
         """Counts the number of ones in the binary representation of the mask."""
         """This is equivalent to the number of functions that the key provides"""
         """access to as long as the mask is a real mask."""
-        return bin(self._mask).count('1')
+        return bin(self.mask).count('1')
 
 class EVECharacterKeyMask(EVEKeyMask):
     """Class for comparing character key masks against the required API calls."""

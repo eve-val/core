@@ -245,8 +245,11 @@ class APICall(Document):
         if prefix.strip() != "<?xml version='1.0' encoding='UTF-8'?>":
             raise Exception("Data returned doesn't seem to be XML!")
         
-        log.warn(type(data))
-        data = xml(data.decode('utf-8'))['eveapi']
+        # Encode in UTF-8 to prevent a bug when converting from CML to a dict.
+        if isinstance(data, unicode):
+            data = data.encode('UTF-8')
+        
+        data = xml(data)['eveapi']
         result = bunchify(data['result'], 'result')
         data = Bunch(data)
         

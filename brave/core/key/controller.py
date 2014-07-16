@@ -20,8 +20,6 @@ from brave.core.util.eve import EVECharacterKeyMask, EVECorporationKeyMask
 
 log = __import__('logging').getLogger(__name__)
 
-KEY_RESET_FLOOR = 3283828
-
 
 class KeyIndex(HTTPMethod):
     def __init__(self, key):
@@ -100,9 +98,11 @@ class KeyList(HTTPMethod):
         
         try:
             data.key = int(data.key)
-            if data.key <= KEY_RESET_FLOOR:
-                return 'json:', dict(success=False, 
-                                     message=_("The key given (%d) must be above minimum reset floor value of %d. Please reset your EVE API Key." % (data.key, KEY_RESET_FLOOR)), 
+            if data.key <= int(config['core.minimum_key_id']):
+                return 'json:', dict(success=False,
+                                     message=_("The key given (%d) must be above minimum reset floor value of %d. "
+                                               "Please reset your EVE API Key."
+                                               % (data.key, int(config['core.minimum_key_id']))),
                                      field='key')
                 
         except ValueError:
@@ -137,7 +137,6 @@ class KeyList(HTTPMethod):
                             message=_("Validation error: one or more fields are incorrect or missing."),
                     )
         except NotUniqueError:
-            
             if EVECredential.objects(key=data.key):
                 # Mark both of these accounts as duplicates to each other.
                 acc = User.objects(username=user.username).first()
@@ -147,7 +146,7 @@ class KeyList(HTTPMethod):
             
             return 'json:', dict(
                 success=False,
-                message=_("This key has already been added by another account."),
+                message=_("This key has already been added to this or another account."),
             )
 
         raise HTTPFound(location='/key/')

@@ -403,7 +403,6 @@ class Settings(HTTPMethod):
 class AccountInterface(HTTPMethod):
     """Handles the individual user pages."""
     
-    @predicate.authenticate
     def __init__(self, userID):
         super(AccountInterface, self).__init__()
         
@@ -461,6 +460,7 @@ class AccountController(Controller):
         deauthenticate()
         raise HTTPSeeOther(location='/')
         
+    @predicate.authenticate
     def __lookup__(self, user, *args, **kw):
         request.path_info_pop()  # We consume a single path element.
         return AccountInterface(user), args

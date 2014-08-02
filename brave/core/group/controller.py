@@ -13,7 +13,7 @@ from brave.core.character.model import EVECharacter, EVECorporation, EVEAlliance
 from brave.core.group.model import Group
 from brave.core.group.acl import ACLList, ACLKey, ACLTitle, ACLRole, ACLMask
 from brave.core.util import post_only
-from brave.core.util.predicate import authorize, is_administrator
+from brave.core.util.predicate import authenticate, authorize, is_administrator
 
 import json
 
@@ -28,6 +28,7 @@ class OneGroupController(Controller):
         except Group.DoesNotExist:
             raise HTTPNotFound()
 
+    @authenticate
     @authorize(is_administrator)
     def index(self):
         return 'brave.core.group.template.group', dict(
@@ -35,6 +36,7 @@ class OneGroupController(Controller):
             group=self.group,
         )
 
+    @authenticate
     @authorize(is_administrator)
     @post_only
     def set_rules(self, rules, really=False):
@@ -83,6 +85,7 @@ class OneGroupController(Controller):
         return 'json:', dict(success=True,
                              message=_("unimplemented"))
 
+    @authenticate
     @authorize(is_administrator)
     @post_only
     def delete(self):
@@ -90,16 +93,16 @@ class OneGroupController(Controller):
         return 'json:', dict(success=True)
 
 class GroupList(HTTPMethod):
+    @authenticate
+    @authorize(is_administrator)
     def get(self):
-        if not is_administrator:
-            raise HTTPNotFound
-
         groups = sorted(Group.objects(), key=lambda g: g.id)
         return 'brave.core.group.template.list_groups', dict(
             area='group',
             groups=groups,
         )
 
+    @authenticate
     @authorize(is_administrator)
     def post(self, id=None, title=None):
         if not id:
@@ -122,6 +125,7 @@ class GroupController(Controller):
         request.path_info_pop()  # We consume a single path element.
         return OneGroupController(id), args
 
+    @authenticate
     @authorize(is_administrator)
     def check_rule_reference_exists(self, kind, name):
         cls = ACLList.target_class(kind)

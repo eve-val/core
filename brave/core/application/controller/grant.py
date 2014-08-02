@@ -68,6 +68,7 @@ class GrantController(Controller):
     browse = BrowseController()
     manage = ManagementController()
     
+    @authenticate
     def __lookup__(self, grant, *args, **kw):
         request.path_info_pop()  # We consume a single path element.
         return GrantInterface(grant), args

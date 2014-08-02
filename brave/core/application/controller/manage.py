@@ -157,6 +157,7 @@ class ApplicationList(HTTPMethod):
 class ManagementController(Controller):
     index = ApplicationList()
     
+    @authenticate
     def __lookup__(self, app, *args, **kw):
         request.path_info_pop()  # We consume a single path element.
         return ApplicationInterface(app), args

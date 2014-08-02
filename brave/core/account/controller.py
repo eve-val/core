@@ -12,6 +12,7 @@ from brave.core.account.model import User, PasswordRecovery
 from brave.core.account.form import authenticate as authenticate_form, register as register_form, \
     recover as recover_form, reset_password as reset_password_form
 from brave.core.account.authentication import lookup_email, send_recover_email
+from brave.core.util import predicate
 from brave.core.util.predicate import is_administrator
 
 from yubico import yubico
@@ -402,6 +403,7 @@ class Settings(HTTPMethod):
 class AccountInterface(HTTPMethod):
     """Handles the individual user pages."""
     
+    @predicate.authenticate
     def __init__(self, userID):
         super(AccountInterface, self).__init__()
         

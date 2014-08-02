@@ -155,6 +155,7 @@ class KeyList(HTTPMethod):
 class CorpKeyMaskController(Controller):
     """Controller for /key/mask/corp/"""
     
+    @authenticate
     def __lookup__(self, mask, *args, **kw):
         return CorpKeyMaskInterface(mask), args
         
@@ -180,6 +181,7 @@ class KeyMaskController(Controller):
     """Controller for /key/mask/"""
     corp = CorpKeyMaskController()
     
+    @authenticate
     def __lookup__(self, mask, *args, **kw):
         return KeyMaskInterface(mask), args
         
@@ -207,6 +209,7 @@ class KeyController(Controller):
     index = KeyList()
     mask = KeyMaskController()
     
+    @authenticate
     def add(self):
         # TODO: mpAjax mime/multipart this to save on escaping the HTML.
         # https://github.com/getify/mpAjax
@@ -216,6 +219,7 @@ class KeyController(Controller):
                 label = dict(label=_("Add Key"), kind='btn-success')
             )
     
+    @authenticate
     def __lookup__(self, key, *args, **kw):
         request.path_info_pop()  # We consume a single path element.
         return KeyInterface(key), args

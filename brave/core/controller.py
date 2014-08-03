@@ -2,18 +2,21 @@
 
 from __future__ import unicode_literals
 
+import os
+
+from binascii import hexlify
 from datetime import datetime, timedelta
 
-from web.core import Controller, HTTPMethod, config, session, request
+from web.core import Controller, HTTPMethod, config, session, request, response
 from web.auth import user
-from web.core.http import HTTPFound, HTTPNotFound
+from web.core.http import HTTPBadRequest, HTTPFound, HTTPNotFound
 from web.core.locale import set_lang, LanguageError, _
 from marrow.util.convert import boolean
 from marrow.util.url import URL
 
 from brave.core import util
 from brave.core.util.signal import StartupMixIn
-from brave.core.util.predicate import authorize, authenticated
+from brave.core.util.predicate import authorize, authenticate
 from brave.core.api.model import AuthenticationRequest
 
 
@@ -53,16 +56,24 @@ class AuthorizeHandler(HTTPMethod):
             # TODO: We need a 'just logged in' flag in the request.
             
             characters = list(u.characters.order_by('name').all())
-            if len(characters):
-                default = u.primary or characters[0]
-            else:
+            if not len(characters):
                 return ('brave.core.template.authorize',
                 dict(success=False, message=_("This application requires that you have a character connected to your"
                                               " account. Please <a href=\"/key/\">add an API key</a> to your account."),
                      ar=ar))
-            return 'brave.core.template.authorize', dict(success=True, ar=ar, characters=characters, default=default)
+            chars = []
+            for c in characters:
+                if c.credential_for(ar.application.mask.required):
+                    chars.append(c)
+            if chars:
+                default = u.primary if u.primary in chars else chars[0]
+            else:
+                return ('brave.core.template.authorize',
+                dict(success=False, message=_("This application requires an API key with a mask of <a href='/key/mask/{0}'>{0}</a> or better, please add an API key with that mask to your account.".format(ar.application.mask.required)),
+                     ar=ar))
+            return 'brave.core.template.authorize', dict(success=True, ar=ar, characters=chars, default=default)
         
-        ngrant = ApplicationGrant(user=u, application=ar.application, mask=grant.mask, expires=datetime.utcnow() + timedelta(days=30), character=grant.character)
+        ngrant = ApplicationGrant(user=u, application=ar.application, mask=grant.mask, expires=datetime.utcnow() + timedelta(days=ar.application.expireGrantDays), character=grant.character)
         ngrant.save()
         
         ar.user = u
@@ -103,8 +114,9 @@ class AuthorizeHandler(HTTPMethod):
             log.exception("Error loading character.")
             return 'json:', dict(success=False, message="Error loading character.")
         
-        # TODO: Non-zero grants.
-        grant = ApplicationGrant(user=u, application=ar.application, mask=0, expires=datetime.utcnow() + timedelta(days=30), character=character)
+        # TODO: Add support for 'optional' masks
+        mask = ar.application.mask.required
+        grant = ApplicationGrant(user=u, application=ar.application, _mask=mask, expires=datetime.utcnow() + timedelta(days=ar.application.expireGrantDays), character=character)
         grant.save()
         
         ar.user = u
@@ -125,6 +137,30 @@ class RootController(StartupMixIn, Controller):
     api = util.load('api')
     group = util.load('group')
     admin = util.load('admin')
+
+    def __call__(self, req):
+        if req.method not in ('GET', 'HEAD'):
+            self.check_csrf()
+        if not request.cookies.get('csrf'):
+            response.set_cookie('csrf', hexlify(os.urandom(16)))
+
+        return super(RootController, self).__call__(req)
+
+    def check_csrf(self):
+        # portions of the application explicitly opted out of CSRF protection.
+        if request.path_info_peek() == 'api':
+            return
+
+        if request.headers.get('X-CSRF'):
+            # the browser prevents sites from sending custom HTTP
+            # headers to another site but allows sites to send custom HTTP
+            # headers to themselves using XMLHttpRequest
+            #  - http://www.adambarth.com/papers/2008/barth-jackson-mitchell-b.pdf
+            return
+
+        # TODO: if we ever want to support normal in-browser forums, accpet a form field containing
+        # the token
+        raise HTTPBadRequest
     
     def __init__(self, *args, **kw):
         super(RootController, self).__init__(*args, **kw)
@@ -134,7 +170,7 @@ class RootController(StartupMixIn, Controller):
         if boolean(config.get('debug', False)):
             self.dev = DeveloperTools()
     
-    @authorize(authenticated)
+    @authenticate
     def index(self):
         return 'brave.core.template.dashboard', dict()
     

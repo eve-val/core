@@ -90,7 +90,8 @@ class KeyList(HTTPMethod):
                 area='keys',
                 admin=admin,
                 records=credentials,
-                rec_mask=config['core.recommended_key_mask']
+                rec_mask=config['core.recommended_key_mask'],
+                rec_kind=config['core.recommended_key_kind']
             )
 
     @authenticate
@@ -173,7 +174,7 @@ class CorpKeyMaskInterface(HTTPMethod):
             mask=self.mask,
             area='keys',
             functions=funcs,
-            kind="o"
+            kind="Corporation"
         )
         
         
@@ -198,7 +199,7 @@ class KeyMaskInterface(HTTPMethod):
             mask=self.mask,
             area='keys',
             functions=funcs,
-            kind="c"
+            kind="Character"
         )
         
         

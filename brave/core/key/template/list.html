@@ -33,7 +33,7 @@
                     '</p>' +
                     '<p>' +
                         'You may use the following link to go to CCP&apos;s New API Key page with the correct permissions pre-selected:<br />' +
-                        '<a target="_blank" href="https://community.eveonline.com/support/api-key/CreatePredefined?accessMask=${rec_mask}">Create a standard API key</a> with minimum permissions.<br/>' +
+                        '<a target="_blank" href="https://community.eveonline.com/support/api-key/CreatePredefined?accessMask=${rec_mask}">Create a standard API key</a> with minimum permissions. A${"n" if rec_kind == "Account" else ""} <b>${rec_kind}</b> key is recommended.<br/>' +
                     '</p>' +
                     '<p>' +
                         '<strong>Note:</strong> When creating a new API key, you must click Submit on CCP&apos;s New API Key page to actually save the key.  The keyID and vCode will be found on the <a target="_blank" href="https://community.eveonline.com/support/api-key/">API Key Management page</a>.' +

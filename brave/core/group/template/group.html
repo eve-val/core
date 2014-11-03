@@ -1,7 +1,8 @@
 ## encoding: utf-8
 
 <%!
-from brave.core.group.acl import ACLList, ACLKey, ACLTitle, ACLRole, ACLMask
+from brave.core.group.model import Group
+from brave.core.group.acl import ACLList, ACLKey, ACLTitle, ACLRole, ACLMask, ACLGroupMembership
 
 def selected(bool):
     return "selected" if bool else ""
@@ -22,6 +23,8 @@ def selected(bool):
         ${aclrole(rule)}
     % elif isinstance(rule, ACLMask):
         ${aclmask(rule)}
+    % elif isinstance(rule, ACLGroupMembership):
+        ${aclgroupmembership(rule)}
     % else:
         ERROR THIS WON'T WORK: ${rule.human_readable_repr()}
     % endif
@@ -115,6 +118,22 @@ def selected(bool):
         A Key For This Character Supporting Permissions:
         <div style="margin: 7px 3px 2px 3px;">
             <input type="text" name="mask" value="${rule.mask}" />
+        </div>
+    </div>
+</%def>
+
+<%def name="aclgroupmembership(rule)">
+    <div class="aclgroupmembership acl_def">
+        <input type="hidden" name="type" value="groupmembership" />
+        ${select_grant(rule)}
+        if the user/character
+        <select name="inverse">
+            <option value="false" ${selected(not rule.inverse)}>is</option>
+            <option value="true" ${selected(rule.inverse)}>isn't</option>
+        </select>
+        a member of the group
+        <div style="margin: 7px 3px 2px 3px;">
+            <input type="text" name="group" value="${rule.group.id}" />
         </div>
     </div>
 </%def>
@@ -217,6 +236,7 @@ def selected(bool):
                     <li><a href="#" class="addrule" data-rule="role">By Corporate Role</a></li>
                     <li><a href="#" class="addrule" data-rule="key">By Key Type</a></li>
                     <li><a href="#" class="addrule" data-rule="mask">By Key Mask</a></li>
+                    <li><a href="#" class="addrule" data-rule="groupmembership">By Group Membership</a></li>
                   </ul>
                 </div>
 
@@ -359,6 +379,7 @@ def selected(bool):
     ${aclrule(ACLTitle(grant=True, titles=[]), None)}
     ${aclrule(ACLRole(grant=True, roles=[]), None)}
     ${aclrule(ACLMask(grant=True, mask=0), None)}
+    ${aclrule(ACLGroupMembership(grant=True, group=Group(id='')), None)}
 </div>
 
 <%block name="pre">

@@ -2,6 +2,8 @@
 
 from __future__ import unicode_literals
 
+import re
+
 from datetime import datetime
 from mongoengine import Document, StringField, DateTimeField, BooleanField, ReferenceField, IntField
 from mongoengine.errors import NotUniqueError
@@ -225,7 +227,11 @@ class EVECredential(Document):
             result = api.account.APIKeyInfo(self)  # cached
         except HTTPError as e:
             if e.response.status_code == 403:
-                log.debug("key disabled; deleting %d" % self.key)
+                m = re.search('<error code="(\d+)">', e.response.text)
+                if m:
+                    log.debug("key disabled (error code %s); deleting %d", m.group(1), self.key)
+                else:
+                    log.debug("key disabled (no error code found, body %r); deleting %d", e.response.text, self.key)
                 self.delete()
                 return None
             log.exception("Unable to call: APIKeyInfo(%d)", self.key)

@@ -7,7 +7,7 @@ if __name__ == "__main__":
     from docopt import docopt
     from brave.core import core_loadapp
     args = docopt(__doc__)
-    core_loadapp(args['<config>'])
+    core_loadapp('config:'+args['<config>'])
 
 import random
 

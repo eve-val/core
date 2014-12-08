@@ -1,3 +1,14 @@
+"""Brave Core key update daemon
+
+usage: update_keys.py <config> [<minutes_between_pulls>] [<threads>]
+"""
+
+if __name__ == "__main__":
+    from docopt import docopt
+    from brave.core import core_loadapp
+    args = docopt(__doc__)
+    core_loadapp(args['<config>'])
+
 import random
 
 from collections import defaultdict
@@ -95,3 +106,11 @@ def main(minutes_between_pulls=1440, threads=1):
         refresh_keylist(num_timeslots=minutes_between_pulls)
         
         wake_time += timedelta(minutes=minutes_between_pulls)
+
+if __name__ == "__main__":
+    kw = {}
+    if args['<minutes_between_pulls>'] != None:
+        kw['minutes_between_pulls'] = int(args['<minutes_between_pulls>'])
+    if args['<threads>'] != None:
+        kw['threads'] = int(args['<threads>'])
+    main(**kw)

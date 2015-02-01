@@ -40,7 +40,7 @@ class KeyIndex(HTTPMethod):
     def get(self):
         return 'brave.core.key.template.keyDetails', dict(
             area='admin' if user.admin else 'keys',
-            admin=True,
+            show_keycode=user.has_permission(self.key.view_keycode_perm),
             record=self.key
         )
 

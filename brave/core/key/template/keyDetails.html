@@ -55,6 +55,11 @@
                         window.location = window.location;
                     });
             });
+
+            $(document).on('click', '.redacted-revealable a', function() {
+                $span = $(this).parent();
+                $span.text($span.data('keycode'));
+            });
         });
     </script>
 </%block>
@@ -65,8 +70,16 @@
             <h3>${_("EVE Online API Key")}</h3>
         </div>
         
-        <b>Key ID:</b> <a href="/key/${record.id}">${record.key}</a><br/>
-        <b>Key Code:</b> Redacted.<br/>
+        <b>Key ID:</b> ${record.key}<br/>
+
+        <b>Key Code:</b>
+        % if show_keycode:
+        <span class="redacted-revealable" data-keycode="${record.code}"><a href="#">reveal</a></span>
+        % else:
+        Redacted.
+        % endif
+        <br/>
+
         <b>Key Mask:</b> <a href="/key/mask/${record.mask.mask}">${record.mask.mask}</a><br/>
         <b>Added:</b> <time datetime="${record.id.generation_time.isoformat().replace('+00:00', 'Z')}">${record.id.generation_time.isoformat(' ').replace('+00:00', '')}</time><br/>
         <b>User:</b> <a href="/account/${record.owner.id}">${record.owner.username}</a><br/>

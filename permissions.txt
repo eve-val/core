@@ -12,7 +12,8 @@ core.group.edit.acl.*:Ability to edit the ACL's for all groups
 core.group.edit.perms.*:Ability to edit the perms for all groups
 core.group.delete.*:Ability to delete all groups
 core.group.create:Ability to create a group (and edit/delete any groups that they make)
-core.key.view.*:Ability to view the details on any key
+core.key.view_keycode.*:Ability to view the verification code on any key
+core.key.view.*:Ability to view general information on any key
 core.key.list.all:Ability to see the list of all API keys
 core.permission.grant.*:Ability to grant any permission
 core.permission.revoke.*:Ability to revoke any permission

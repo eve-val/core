@@ -233,6 +233,19 @@ class EVECredential(Document):
                     log.debug("key disabled (error code %s); deleting %d", m.group(1), self.key)
                 else:
                     log.debug("key disabled (no error code found, body %r); deleting %d", e.response.text, self.key)
+
+                # Import EVECharacter here, on the theory that the following
+                # warning from the mongoengine docs in the reason we are seeing
+                # references to nonexistent credentials:
+                #     A safety note on setting up these delete rules! Since the
+                #     delete rules are not recorded on the database level by
+                #     MongoDB itself, but instead at runtime, in-memory, by the
+                #     MongoEngine module, it is of the upmost importance that the
+                #     module that declares the relationship is loaded BEFORE the
+                #     delete is invoked.
+                # http://docs.mongoengine.org/guide/defining-documents.html#dealing-with-deletion-of-referred-documents
+                from brave.core.character.model import EVECharacter
+
                 self.delete()
                 return None
             log.exception("Unable to call: APIKeyInfo(%d)", self.key)

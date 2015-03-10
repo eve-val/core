@@ -180,14 +180,25 @@ def selected(bool):
                 %>
 
                 <li>
-                    % if type == "c":
-                        <img src="https://image.eveonline.com/Character/${item.identifier}_32.jpg" style="width: 20px; height: 20px; border-radius: 4px; margin-top: -5px;" alt="" />
-                    % elif type == "o":
-                        <img src="https://image.eveonline.com/Corporation/${item.identifier}_32.png" style="width: 20px; height: 20px; border-radius: 4px; margin-top: -5px;" alt="" />
-                    % elif type == "a":
-                        <img src="https://image.eveonline.com/Alliance/${item.identifier}_32.png" style="width: 20px; height: 20px; border-radius: 4px; margin-top: -5px;" alt="" />
-                    % endif
-                    <span onclick="$(this).selectText();" style="${style}}">${item | h}</span>
+                    <%
+                        if type == "c":
+                            image_url = "https://image.eveonline.com/Character/%d_32.jpg" % item.identifier
+                            text = unicode(item)
+                            if item.corporation:
+                                text += " [%s]" % item.corporation.short
+                            if item.alliance:
+                                text += " <%s>" % item.alliance.short
+                        elif type == "o":
+                            image_url = "https://image.eveonline.com/Corporation/%d_32.png" % item.identifier
+                            text = "%s [%s]" % (unicode(item), item.short)
+                            if item.alliance:
+                                text += " <%s>" % item.alliance.short
+                        elif type == "a":
+                            image_url = "https://image.eveonline.com/Alliance/%d_32.png" % item.identifier
+                            text = "%s <%s>" % (unicode(item), item.short)
+                    %>
+                    <img src="${image_url}" style="width: 20px; height: 20px; border-radius: 4px; margin-top: -5px;" alt="" />
+                    <span onclick="$(this).selectText();" style="${style}">${text | h}</span>
                     <input type="hidden" name="${input_name}" value="${item | h}" />
                     <i class="remove fa fa-times"></i>
                 </li>
@@ -222,14 +233,18 @@ def selected(bool):
     <div id="pad-wrapper">
         <div class="row-fluid header">
             <div class="pull-right">
+                % if web.user.has_permission(group.edit_id_perm):
                 <div class="input-append">
-                          <input class="id" id="set_id" type="text" placeholder="New Group ID" class="span2"/>
-                          <button class="btn btn-success setID" type="button">Edit ID</button>
-                 </div>
-                 <div class="input-append">
-                          <input class="title" id="set_title" type="text" placeholder="New Group Title" class="span2"/>
-                          <button class="btn btn-success setTitle" type="button">Edit Title</button>
-                 </div>
+                         <input class="id" id="set_id" type="text" placeholder="New Group ID" class="span2"/>
+                         <button class="btn btn-success setID" type="button">Edit ID</button>
+                </div>
+                % endif
+                % if web.user.has_permission(group.edit_title_perm):
+                <div class="input-append">
+                         <input class="title" id="set_title" type="text" placeholder="New Group Title" class="span2"/>
+                         <button class="btn btn-success setTitle" type="button">Edit Title</button>
+                </div>
+                % endif
             </div>
             <h3 onclick="$(this).selectText();" style="font-weight: bold; margin-bottom:20px">${group.id | h}</h3>
             <div class="well well-small">${group.title | h}</div>
@@ -305,7 +320,7 @@ def selected(bool):
                         </tr>
                     </thead>
                     <tbody class="sortable">
-                        % for perm in group._permissions:
+                        % for perm in sorted(group._permissions, key=lambda p: p.id):
                             <tr id="${perm.id}">
                                 <td><span onclick="$(this).selectText()">${perm.id | h}</span></td>
                                 <td>${perm.description | h}</td>

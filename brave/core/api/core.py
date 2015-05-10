@@ -192,17 +192,20 @@ class CoreAPI(SignedController):
 
         # Step 2: Assemble the information for each character
         def char_info(char):
-            # Ensure that this character still belongs to this user. 
-            if char.owner != token.user:
-                token.remove_character(char)
-                token.reload()
-                return None
-
-            # Match ACLs.
             tags = []
-            for group in Group.objects(id__in=request.service.groups):
-                if group.evaluate(token.user, char):
-                    tags.append(group.id)
+            perms = []
+            if not token.all_core_chars:
+                # Ensure that this character still belongs to this user.
+                if char.owner != token.user:
+                    token.remove_character(char)
+                    token.reload()
+                    return None
+
+                # Match ACLs.
+                for group in Group.objects(id__in=request.service.groups):
+                    if group.evaluate(token.user, char):
+                        tags.append(group.id)
+                perms = char.permissions_tags(token.application),
 
             return dict(
                 character = dict(id=char.identifier, name=char.name),
@@ -211,9 +214,9 @@ class CoreAPI(SignedController):
                             if char.alliance
                             else None),
                 tags = tags,
-                perms = char.permissions_tags(token.application),
+                perms = perms,
                 expires = None,
-                mask = token.mask,
+                mask = token._mask,
             )
 
         characters_info = filter(None, map(char_info, token.characters))

@@ -39,7 +39,7 @@ class GrantInterface(HTTPMethod):
         user = grant.user
         
         data = {str(c.identifier):(c in grant.characters) for c in user.characters}
-        data['all'] = grant.all_chars
+        data['all'] = grant.all_user_chars
         
         return 'brave.core.template.form', dict(
                 kind = _('Application Grant'),
@@ -61,7 +61,7 @@ class GrantInterface(HTTPMethod):
             if key == 'all':
                 if not value and grant.application.require_all_chars:
                     continue
-                grant.all_chars = value
+                grant.all_user_chars = value
                 continue
             
             if not value:
@@ -81,7 +81,7 @@ class GrantInterface(HTTPMethod):
         if new_characters:
             grant.chars = new_characters
             grant.save()
-        elif grant.all_chars:
+        elif grant.all_user_chars:
             grant.chars = user.characters
             grant.save()
         else:

@@ -115,7 +115,8 @@ class ApplicationGrant(Document):
     character = ReferenceField('EVECharacter', db_field='c')
     
     chars = ListField(ReferenceField('EVECharacter'), db_field='chars', required=True)
-    all_chars = BooleanField(db_field='b', default=False)
+    all_user_chars = BooleanField(db_field='b', default=False)
+    all_core_chars = BooleanField(db_field='global', default=False)
     _mask = IntField(db_field='m', default=0)
     
     immutable = BooleanField(db_field='i', default=False)  # Onboarding is excempt from removal by the user.
@@ -125,7 +126,11 @@ class ApplicationGrant(Document):
     
     @property
     def characters(self):
-        if self.all_chars:
+        if self.all_core_chars:
+            from brave.core.character.model import EVECharacter
+            return EVECharacter.objects()
+
+        if self.all_user_chars:
             return self.user.characters
         
         return self.chars
@@ -133,6 +138,8 @@ class ApplicationGrant(Document):
     @property
     def default_character(self):
         """This is used for backwards compatibility for old single character grants."""
+        assert not self.all_core_chars
+
         if self.character:
             return self.character
         
@@ -175,7 +182,7 @@ class ApplicationGrant(Document):
         If there are no other characters for this grant, the grant is removed.
         """
 
-        if self.all_chars:
+        if self.all_user_chars:
             # If the grant is for all of the user's characters, we cannot simply remove a single
             # character. For the moment, we'll lie and say we did. This is *definitely* not the
             # right solution though. Maybe we should return a bool, or throw an exception that

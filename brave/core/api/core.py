@@ -223,6 +223,9 @@ class CoreAPI(SignedController):
         if not characters_info:
             raise HTTPUnauthorized()
 
-        info = char_info(token.default_character)
+        if token.all_core_chars:
+            info = {}
+        else:
+            info = char_info(token.default_character)
         info['characters'] = characters_info
         return info

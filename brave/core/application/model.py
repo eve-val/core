@@ -138,6 +138,8 @@ class ApplicationGrant(Document):
     @property
     def default_character(self):
         """This is used for backwards compatibility for old single character grants."""
+        assert not self.all_core_chars
+
         if self.character:
             return self.character
         

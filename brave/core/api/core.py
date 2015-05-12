@@ -205,7 +205,7 @@ class CoreAPI(SignedController):
                 for group in Group.objects(id__in=request.service.groups):
                     if group.evaluate(token.user, char):
                         tags.append(group.id)
-                perms = char.permissions_tags(token.application),
+                perms = char.permissions_tags(token.application)
 
             return dict(
                 character = dict(id=char.identifier, name=char.name),
